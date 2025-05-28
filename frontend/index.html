@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecurityPass Pro - Gerador de Senhas Ultra Seguras</title>
+
+    <!-- Meta tags -->
+    <meta name="description"
+        content="Gerador de senhas ultra seguras com análise avançada, histórico e múltiplas funcionalidades">
+    <meta name="keywords" content="gerador, senha, segurança, criptografia, password">
+    <meta name="author" content="Rafael V. Gogge">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Chart.js for analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.6s ease-out',
+                        'slide-down': 'slideDown 0.4s ease-out',
+                        'slide-left': 'slideLeft 0.4s ease-out',
+                        'slide-right': 'slideRight 0.4s ease-out',
+                        'bounce-in': 'bounceIn 0.8s ease-out',
+                        'pulse-success': 'pulseSuccess 0.6s ease-out',
+                        'shake': 'shake 0.5s ease-in-out',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'float': 'float 6s ease-in-out infinite',
+                        'rotate-slow': 'rotateSlow 20s linear infinite',
+                        'scale-pulse': 'scalePulse 2s ease-in-out infinite',
+                    },
+                    backdropBlur: {
+                        'xs': '2px',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body
+    class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900 font-inter transition-all duration-500">
+    <!-- Background Effects -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div
+            class="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 dark:bg-purple-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float">
+        </div>
+        <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-300 dark:bg-yellow-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float"
+            style="animation-delay: 2s;"></div>
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-300 dark:bg-pink-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float"
+            style="animation-delay: 4s;"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="relative z-50 p-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div
+                    class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                    <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">SecurityPass Pro</h1>
+                    <p class="text-xs text-gray-600 dark:text-gray-400">Ultra Secure Password Generator</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <!-- Theme Toggle -->
+                <button onclick="toggleTheme()" id="themeToggle"
+                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 group"
+                    title="Alternar tema">
+                    <i data-lucide="sun" class="w-5 h-5 text-gray-700 dark:text-gray-300 dark:hidden"></i>
+                    <i data-lucide="moon" class="w-5 h-5 text-gray-700 dark:text-gray-300 hidden dark:block"></i>
+                </button>
+
+                <!-- Settings -->
+                <button onclick="toggleSettings()"
+                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
+                    title="Configurações">
+                    <i data-lucide="settings" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
+                </button>
+
+                <!-- History -->
+                <button onclick="toggleHistory()"
+                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
+                    title="Histórico">
+                    <i data-lucide="history" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
+                    <span id="historyCount"
+                        class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center hidden">0</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="relative min-h-screen flex items-center justify-center p-4 pt-0">
+        <!-- Main Card -->
+        <div class="w-full max-w-2xl mx-auto">
+            <div
+                class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/20 overflow-hidden animate-slide-up">
+                <!-- Header -->
+                <div class="relative bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-8 text-center">
+                    <div class="absolute inset-0 bg-black/10"></div>
+                    <div class="relative z-10">
+                        <div
+                            class="inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-3xl mb-6 animate-bounce-in">
+                            <i data-lucide="key-round" class="w-10 h-10 text-white"></i>
+                        </div>
+                        <h2 class="text-3xl font-bold text-white mb-3">Gerador Ultra Seguro</h2>
+                        <p class="text-blue-100 text-sm max-w-md mx-auto">Crie senhas ultra-seguras com análise
+                            avançada, histórico completo e múltiplas opções de personalização</p>
+                    </div>
+
+                    <!-- Animated decorations -->
+                    <div
+                        class="absolute top-6 right-6 w-12 h-12 border-2 border-white/30 rounded-full animate-scale-pulse">
+                    </div>
+                    <div class="absolute bottom-6 left-6 w-8 h-8 border-2 border-white/30 rounded-full animate-scale-pulse"
+                        style="animation-delay: 1s;"></div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex">
+                        <button onclick="switchTab('generator')" id="tab-generator"
+                            class="tab-button active flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
+                            <i data-lucide="key" class="w-4 h-4 inline mr-2"></i>
+                            Gerador
+                        </button>
+                        <button onclick="switchTab('analyzer')" id="tab-analyzer"
+                            class="tab-button flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
+                            <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>
+                            Analisador
+                        </button>
+                        <button onclick="switchTab('bulk')" id="tab-bulk"
+                            class="tab-button flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
+                            <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>
+                            Múltiplas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Alert -->
+                <div id="alerta" class="hidden mx-6 mt-6 p-4 rounded-xl border transition-all duration-300 transform">
+                    <div class="flex items-center space-x-3">
+                        <div id="alertIcon" class="flex-shrink-0"></div>
+                        <div id="alertMessage" class="text-sm font-medium flex-1"></div>
+                        <button onclick="alertSystem.hide()"
+                            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab Contents -->
+                <div class="p-6">
+                    <!-- Generator Tab -->
+                    <div id="content-generator" class="tab-content space-y-6">
+                        <!-- Advanced Options Toggle -->
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Configurações de Geração
+                            </h3>
+                            <button onclick="toggleAdvancedOptions()"
+                                class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium">
+                                <span id="advancedToggleText">Opções Avançadas</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 inline ml-1 transition-transform"
+                                    id="advancedToggleIcon"></i>
+                            </button>
+                        </div>
+
+                        <!-- Basic Options -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Length Input -->
+                            <div class="space-y-3">
+                                <label for="lengthInput"
+                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Comprimento da senha
+                                </label>
+                                <div class="relative">
+                                    <input type="range" id="lengthSlider" min="4" max="64" value="16"
+                                        class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                                        oninput="updateLengthFromSlider()">
+                                    <input type="number" id="lengthInput" min="4" max="64" value="16"
+                                        class="mt-2 w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-gray-600 transition-all duration-200 text-center text-lg font-semibold text-gray-900 dark:text-white"
+                                        oninput="updateLengthFromInput()">
+                                </div>
+                            </div>
+
+                            <!-- Character Types -->
+                            <div class="space-y-3">
+                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Tipos de caracteres
+                                </label>
+                                <div class="space-y-3">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeUppercase" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Maiúsculas (A-Z)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">26 chars</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeLowercase" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Minúsculas (a-z)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">26 chars</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeNumbers" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Números (0-9)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">10 chars</span>
+                                    </label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="includeSymbols" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Símbolos (!@#$%)</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">32 chars</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Options -->
+                        <div id="advancedOptions"
+                            class="hidden space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Exclude Similar -->
+                                <div class="space-y-3">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="excludeSimilar">
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Excluir caracteres similares</span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">Remove: 0, O, l, I, 1</p>
+                                </div>
+
+                                <!-- Exclude Ambiguous -->
+                                <div class="space-y-3">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="excludeAmbiguous">
+                                        <span class="checkmark"></span>
+                                        <span class="text-sm">Excluir caracteres ambíguos</span>
+                                    </label>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">Remove:
+                                        {}[]()\/'"~,;&lt;&gt;</p>
+                                </div>
+
+                                <!-- Custom Characters -->
+                                <div class="space-y-3 md:col-span-2">
+                                    <label for="customChars"
+                                        class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                        Caracteres personalizados
+                                    </label>
+                                    <input type="text" id="customChars" placeholder="Digite caracteres adicionais..."
+                                        class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <button onclick="gerarSenha()" id="btnGerar"
+                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group">
+                            <div class="flex items-center justify-center space-x-3">
+                                <div id="spinner"
+                                    class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin">
+                                </div>
+                                <i data-lucide="refresh-cw" class="w-5 h-5 group-hover:animate-spin"
+                                    id="generateIcon"></i>
+                                <span id="generateText">Gerar Nova Senha</span>
+                            </div>
+                        </button>
+
+                        <!-- Generated Password -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label for="senhaGerada"
+                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Senha gerada
+                                </label>
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="addToFavorites()" id="favoriteBtn"
+                                        class="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
+                                        title="Adicionar aos favoritos">
+                                        <i data-lucide="star" class="w-4 h-4"></i>
+                                    </button>
+                                    <button onclick="sharePassword()"
+                                        class="p-2 text-gray-400 hover:text-blue-500 transition-colors"
+                                        title="Compartilhar">
+                                        <i data-lucide="share-2" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="relative">
+                                <input type="password" id="senhaGerada" readonly
+                                    class="w-full px-4 py-4 pr-32 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl font-mono text-lg transition-all duration-200 focus:border-blue-500 dark:focus:border-blue-400 text-gray-900 dark:text-white"
+                                    placeholder="Sua senha aparecerá aqui...">
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-2 space-x-1">
+                                    <button type="button" onclick="toggleSenhaVisibilidade()" id="toggleSenha"
+                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-all duration-200"
+                                        title="Mostrar/Ocultar senha">
+                                        <i data-lucide="eye" class="w-4 h-4" id="eyeIcon"></i>
+                                    </button>
+                                    <button type="button" onclick="copiarSenha()" id="btnCopiar"
+                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 disabled:opacity-50"
+                                        title="Copiar senha">
+                                        <i data-lucide="copy" class="w-4 h-4" id="copyIcon"></i>
+                                    </button>
+                                    <button type="button" onclick="downloadPassword()"
+                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200"
+                                        title="Baixar como arquivo">
+                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Password Analysis -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Strength Meter -->
+                            <div class="space-y-3" id="strengthContainer" style="display: none;">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Força da
+                                        senha</span>
+                                    <span id="strengthText" class="text-sm font-bold"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                    <div id="strengthBar"
+                                        class="h-full transition-all duration-500 ease-out rounded-full"></div>
+                                </div>
+                                <div id="strengthTips" class="text-xs text-gray-600 dark:text-gray-400 space-y-1"></div>
+                            </div>
+
+                            <!-- Statistics -->
+                            <div class="bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-blue-900/30 rounded-xl p-4"
+                                id="statsContainer" style="display: none;">
+                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Estatísticas
+                                </h3>
+                                <div class="grid grid-cols-2 gap-4 text-center">
+                                    <div>
+                                        <div id="entropyValue"
+                                            class="text-2xl font-bold text-blue-600 dark:text-blue-400">-</div>
+                                        <div class="text-xs text-gray-600 dark:text-gray-400">Bits de entropia</div>
+                                    </div>
+                                    <div>
+                                        <div id="crackTime"
+                                            class="text-2xl font-bold text-purple-600 dark:text-purple-400">-</div>
+                                        <div class="text-xs text-gray-600 dark:text-gray-400">Tempo para quebrar</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Presets -->
+                        <div class="space-y-3">
+                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Presets rápidos</h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button onclick="applyPreset('basic')" class="preset-btn">
+                                    <i data-lucide="shield" class="w-4 h-4"></i>
+                                    <span>Básica</span>
+                                    <small>8 chars</small>
+                                </button>
+                                <button onclick="applyPreset('strong')" class="preset-btn">
+                                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                                    <span>Forte</span>
+                                    <small>16 chars</small>
+                                </button>
+                                <button onclick="applyPreset('ultra')" class="preset-btn">
+                                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
+                                    <span>Ultra</span>
+                                    <small>32 chars</small>
+                                </button>
+                                <button onclick="applyPreset('pin')" class="preset-btn">
+                                    <i data-lucide="hash" class="w-4 h-4"></i>
+                                    <span>PIN</span>
+                                    <small>4-6 nums</small>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyzer Tab -->
+                    <div id="content-analyzer" class="tab-content hidden space-y-6">
+                        <div class="text-center">
+                            <i data-lucide="search" class="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4"></i>
+                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Analisador de Senhas
+                            </h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6">Analise a força e segurança de qualquer
+                                senha</p>
+                        </div>
+
+                        <div class="space-y-4">
+                            <label for="analyzeInput"
+                                class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                Digite a senha para análise
+                            </label>
+                            <div class="relative">
+                                <input type="password" id="analyzeInput" placeholder="Digite sua senha aqui..."
+                                    class="w-full px-4 py-4 pr-12 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white font-mono"
+                                    oninput="analyzePassword(this.value)">
+                                <button type="button" onclick="toggleAnalyzeVisibility()"
+                                    class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                                    <i data-lucide="eye" class="w-4 h-4" id="analyzeEyeIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Analysis Results -->
+                        <div id="analysisResults" class="hidden space-y-6">
+                            <!-- Detailed Strength -->
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Análise Detalhada</h4>
+                                <div class="space-y-4">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600 dark:text-gray-400">Força geral</span>
+                                        <div class="flex items-center space-x-2">
+                                            <div class="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                                <div id="detailedStrengthBar"
+                                                    class="h-full rounded-full transition-all duration-500"></div>
+                                            </div>
+                                            <span id="detailedStrengthText" class="text-sm font-semibold"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-400">Comprimento:</span>
+                                            <span id="analyzeLength"
+                                                class="font-semibold text-gray-900 dark:text-white">-</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-400">Entropia:</span>
+                                            <span id="analyzeEntropy"
+                                                class="font-semibold text-gray-900 dark:text-white">-</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-400">Tempo para quebrar:</span>
+                                            <span id="analyzeCrackTime"
+                                                class="font-semibold text-gray-900 dark:text-white">-</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-400">Tipos de char:</span>
+                                            <span id="analyzeCharTypes"
+                                                class="font-semibold text-gray-900 dark:text-white">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Security Checks -->
+                            <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Verificações de Segurança
+                                </h4>
+                                <div id="securityChecks" class="space-y-3"></div>
+                            </div>
+
+                            <!-- Recommendations -->
+                            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6">
+                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Recomendações</h4>
+                                <div id="recommendations" class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Generator Tab -->
+                    <div id="content-bulk" class="tab-content hidden space-y-6">
+                        <div class="text-center">
+                            <i data-lucide="layers" class="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4"></i>
+                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Gerador em Lote</h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6">Gere múltiplas senhas de uma só vez</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <label for="bulkCount"
+                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Quantidade de senhas
+                                </label>
+                                <input type="number" id="bulkCount" min="1" max="100" value="5"
+                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white">
+                            </div>
+
+                            <div class="space-y-4">
+                                <label for="bulkLength"
+                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Comprimento das senhas
+                                </label>
+                                <input type="number" id="bulkLength" min="4" max="64" value="16"
+                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white">
+                            </div>
+                        </div>
+
+                        <button onclick="generateBulkPasswords()" id="btnBulkGenerate"
+                            class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95">
+                            <div class="flex items-center justify-center space-x-3">
+                                <i data-lucide="layers" class="w-5 h-5"></i>
+                                <span>Gerar Senhas em Lote</span>
+                            </div>
+                        </button>
+
+                        <!-- Bulk Results -->
+                        <div id="bulkResults" class="hidden space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h4 class="font-semibold text-gray-900 dark:text-white">Senhas Geradas</h4>
+                                <div class="flex space-x-2">
+                                    <button onclick="copyAllPasswords()"
+                                        class="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
+                                        Copiar Todas
+                                    </button>
+                                    <button onclick="exportPasswords()"
+                                        class="text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
+                                        Exportar
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="bulkPasswordsList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div
+                    class="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 text-center border-t border-gray-200 dark:border-gray-700">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Desenvolvido com ❤️ por
+                        <a href="https://github.com/rafaelgogge" target="_blank" rel="noopener noreferrer"
+                            class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors">
+                            Rafael V. Gogge
+                        </a>
+                        • Versão 2.0 Pro
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals and Overlays -->
+
+    <!-- Settings Modal -->
+    <div id="settingsModal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md mx-4 w-full max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Configurações</h3>
+                <button onclick="toggleSettings()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Auto-generate -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-white">Auto-gerar</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Gerar senha automaticamente ao carregar</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoGenerate" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Auto-copy -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-white">Auto-copiar</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Copiar automaticamente após gerar</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoCopy">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Sound effects -->
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-white">Efeitos sonoros</h4>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Sons de feedback para ações</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="soundEffects">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <!-- Clear history -->
+                <button onclick="clearHistory()"
+                    class="w-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 py-3 px-4 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                    <i data-lucide="trash-2" class="w-4 h-4 inline mr-2"></i>
+                    Limpar Histórico
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="historyModal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl mx-4 w-full max-h-[80vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Histórico de Senhas</h3>
+                <button onclick="toggleHistory()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div id="historyList" class="space-y-3">
+                <!-- History items will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal"
+        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-sm mx-4 text-center transform scale-95 transition-transform">
+            <div
+                class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="check" class="w-8 h-8 text-green-600 dark:text-green-400"></i>
+            </div>
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Sucesso!</h3>
+            <p id="successMessage" class="text-gray-600 dark:text-gray-400 text-sm mb-4">Operação realizada com sucesso.
+            </p>
+            <button onclick="closeSuccessModal()"
+                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors">
+                Entendi
+            </button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Initialize theme
+        initializeTheme();
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function () {
+            initializeApp();
+        });
+    </script>
+</body>
+
+</html>
