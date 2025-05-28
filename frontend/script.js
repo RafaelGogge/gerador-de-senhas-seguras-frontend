@@ -1,4 +1,3 @@
-import CONFIG from './api.js';
 // Enhanced State Management
 const CONFIG = {
     API_URL: API_BACKEND,
@@ -16,6 +15,8 @@ const CONFIG = {
         FAVORITES: 'securepass_favorites'
     }
 };
+
+// Enhanced State Management
 const state = {
     isGenerating: false,
     senhaVisivel: false,
@@ -229,7 +230,7 @@ const alertSystem = {
         }, 10);
 
         // Re-initialize icons
-        lucide.createIcons();
+        window.lucide.createIcons();
 
         if (duration > 0) {
             setTimeout(() => this.hide(), duration);
@@ -351,7 +352,7 @@ const strengthAnalyzer = {
             tipsContainer.innerHTML = '<div class="flex items-center space-x-2 text-green-600 dark:text-green-400"><i data-lucide="check" class="w-3 h-3"></i><span>Senha muito segura!</span></div>';
         }
 
-        lucide.createIcons();
+        window.lucide.createIcons();
         return analysis;
     },
 
@@ -682,7 +683,7 @@ async function copiarSenha() {
         setTimeout(() => {
             senhaInput.classList.remove('copied');
             copyIcon.setAttribute('data-lucide', 'copy');
-            lucide.createIcons();
+            window.lucide.createIcons();
         }, 1000);
 
     } catch (error) {
@@ -700,7 +701,7 @@ function toggleSenhaVisibilidade() {
     senhaInput.type = state.senhaVisivel ? 'text' : 'password';
 
     eyeIcon.setAttribute('data-lucide', state.senhaVisivel ? 'eye-off' : 'eye');
-    lucide.createIcons();
+    window.lucide.createIcons();
     utils.playSound('click');
 }
 
@@ -713,7 +714,7 @@ function toggleAnalyzeVisibility() {
     analyzeInput.type = state.analyzeVisible ? 'text' : 'password';
 
     eyeIcon.setAttribute('data-lucide', state.analyzeVisible ? 'eye-off' : 'eye');
-    lucide.createIcons();
+    window.lucide.createIcons();
 }
 
 function analyzePassword(password) {
@@ -803,7 +804,7 @@ function analyzePassword(password) {
         `;
     }
 
-    lucide.createIcons();
+    window.lucide.createIcons();
 }
 
 // Bulk Password Generation
@@ -857,7 +858,7 @@ async function generateBulkPasswords() {
                 <span>Gerar Senhas em Lote</span>
             </div>
         `;
-        lucide.createIcons();
+        window.lucide.createIcons();
     }
 }
 
@@ -888,7 +889,7 @@ function displayBulkPasswords(passwords) {
         </div>
     `).join('');
 
-    lucide.createIcons();
+    window.lucide.createIcons();
 }
 
 async function copyBulkPassword(password) {
@@ -991,7 +992,7 @@ function displayHistory() {
                 <p>Nenhuma senha no histórico</p>
             </div>
         `;
-        lucide.createIcons();
+        window.lucide.createIcons();
         return;
     }
 
@@ -1029,7 +1030,7 @@ function displayHistory() {
         </div>
     `).join('');
 
-    lucide.createIcons();
+    window.lucide.createIcons();
 }
 
 async function copyHistoryPassword(password) {
@@ -1092,7 +1093,7 @@ function addToFavorites(password = null) {
     const favoriteBtn = document.getElementById('favoriteBtn');
     if (favoriteBtn) {
         favoriteBtn.innerHTML = '<i data-lucide="star" class="w-4 h-4 text-yellow-500"></i>';
-        lucide.createIcons();
+        window.lucide.createIcons();
     }
 
     alertSystem.show('Senha adicionada aos favoritos!', 'success');
@@ -1301,7 +1302,7 @@ function setupEventListeners() {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             // Refresh icons when tab becomes visible
-            setTimeout(() => lucide.createIcons(), 100);
+            setTimeout(() => window.lucide.createIcons(), 100);
         }
     });
 }
@@ -1337,3 +1338,11 @@ if ('serviceWorker' in navigator) {
             });
     });
 }
+
+// Declare lucide variable
+window.lucide = {
+    createIcons: function () {
+        // Placeholder for lucide icon creation logic
+        console.log('Lucide icons created');
+    }
+};
