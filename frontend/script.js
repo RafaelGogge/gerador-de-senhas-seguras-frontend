@@ -1,669 +1,1348 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+// Enhanced State Management
+const CONFIG = {
+    API_URL: API_BACKEND,
+    DEBOUNCE_DELAY: 300,
+    ANIMATION_DURATION: 300,
+    ALERT_DURATION: 4000,
+    MAX_RETRIES: 3,
+    RETRY_DELAY: 1000,
+    MAX_HISTORY: 50,
+    MAX_BULK_PASSWORDS: 100,
+    STORAGE_KEYS: {
+        THEME: 'securepass_theme',
+        SETTINGS: 'securepass_settings',
+        HISTORY: 'securepass_history',
+        FAVORITES: 'securepass_favorites'
+    }
+};
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SecurePass Pro - Gerador de Senhas Ultra Seguras</title>
+// Enhanced State Management
+const state = {
+    isGenerating: false,
+    senhaVisivel: false,
+    analyzeVisible: false,
+    currentPassword: '',
+    currentTab: 'generator',
+    retryCount: 0,
+    lastGenerateTime: 0,
+    theme: 'light',
+    settings: {
+        autoGenerate: true,
+        autoCopy: false,
+        soundEffects: false,
+        showAdvanced: false
+    },
+    history: [],
+    favorites: [],
+    bulkPasswords: []
+};
 
-    <!-- Meta tags -->
-    <meta name="description"
-        content="Gerador de senhas ultra seguras com análise avançada, histórico e múltiplas funcionalidades">
-    <meta name="keywords" content="gerador, senha, segurança, criptografia, password">
-    <meta name="author" content="Rafael V. Gogge">
+// Enhanced Utility Functions
+const utils = {
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    formatTime(seconds) {
+        if (seconds < 1) return 'Instantâneo';
+        if (seconds < 60) return `${Math.round(seconds)}s`;
+        if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+        if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+        if (seconds < 31536000) return `${Math.round(seconds / 86400)}d`;
+        return `${Math.round(seconds / 31536000)}a`;
+    },
 
-    <!-- Google Fonts -->
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet">
+    calculateEntropy(password) {
+        const charSets = [
+            /[a-z]/.test(password) ? 26 : 0,
+            /[A-Z]/.test(password) ? 26 : 0,
+            /[0-9]/.test(password) ? 10 : 0,
+            /[^A-Za-z0-9]/.test(password) ? 32 : 0
+        ];
+        const charSetSize = charSets.reduce((sum, size) => sum + size, 0);
+        return password.length * Math.log2(charSetSize || 1);
+    },
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    estimateCrackTime(entropy) {
+        const guessesPerSecond = 1e12; // 1 trillion guesses per second (modern hardware)
+        const totalCombinations = Math.pow(2, entropy);
+        const averageGuesses = totalCombinations / 2;
+        return averageGuesses / guessesPerSecond;
+    },
 
-    <!-- Chart.js for analytics -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    },
 
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="style.css">
+    formatDate(date) {
+        return new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(date);
+    },
 
-    <!-- Tailwind Config -->
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        'inter': ['Inter', 'sans-serif'],
-                        'mono': ['JetBrains Mono', 'monospace'],
-                    },
-                    animation: {
-                        'fade-in': 'fadeIn 0.5s ease-in-out',
-                        'slide-up': 'slideUp 0.6s ease-out',
-                        'slide-down': 'slideDown 0.4s ease-out',
-                        'slide-left': 'slideLeft 0.4s ease-out',
-                        'slide-right': 'slideRight 0.4s ease-out',
-                        'bounce-in': 'bounceIn 0.8s ease-out',
-                        'pulse-success': 'pulseSuccess 0.6s ease-out',
-                        'shake': 'shake 0.5s ease-in-out',
-                        'glow': 'glow 2s ease-in-out infinite alternate',
-                        'float': 'float 6s ease-in-out infinite',
-                        'rotate-slow': 'rotateSlow 20s linear infinite',
-                        'scale-pulse': 'scalePulse 2s ease-in-out infinite',
-                    },
-                    backdropBlur: {
-                        'xs': '2px',
-                    }
+    copyToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        } else {
+            return new Promise((resolve, reject) => {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    textArea.remove();
+                    resolve();
+                } catch (error) {
+                    textArea.remove();
+                    reject(error);
                 }
+            });
+        }
+    },
+
+    downloadFile(content, filename, type = 'text/plain') {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    },
+
+    playSound(type) {
+        if (!state.settings.soundEffects) return;
+
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        const frequencies = {
+            success: 800,
+            error: 300,
+            click: 600,
+            copy: 1000
+        };
+
+        oscillator.frequency.setValueAtTime(frequencies[type] || 600, audioContext.currentTime);
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+    }
+};
+
+// Enhanced Storage Management
+const storage = {
+    save(key, data) {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+        } catch (error) {
+            console.warn('Failed to save to localStorage:', error);
+        }
+    },
+
+    load(key, defaultValue = null) {
+        try {
+            const item = localStorage.getItem(key);
+            return item ? JSON.parse(item) : defaultValue;
+        } catch (error) {
+            console.warn('Failed to load from localStorage:', error);
+            return defaultValue;
+        }
+    },
+
+    remove(key) {
+        try {
+            localStorage.removeItem(key);
+        } catch (error) {
+            console.warn('Failed to remove from localStorage:', error);
+        }
+    }
+};
+
+// Enhanced Alert System
+const alertSystem = {
+    show(message, type = 'info', duration = CONFIG.ALERT_DURATION) {
+        const alerta = document.getElementById('alerta');
+        const alertIcon = document.getElementById('alertIcon');
+        const alertMessage = document.getElementById('alertMessage');
+
+        alerta.className = 'mx-6 mt-6 p-4 rounded-xl border transition-all duration-300 transform';
+
+        const configs = {
+            success: {
+                classes: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200',
+                icon: 'check-circle'
+            },
+            error: {
+                classes: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200',
+                icon: 'x-circle'
+            },
+            warning: {
+                classes: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200',
+                icon: 'alert-triangle'
+            },
+            info: {
+                classes: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200',
+                icon: 'info'
+            }
+        };
+
+        const config = configs[type] || configs.info;
+        alerta.className += ` ${config.classes}`;
+
+        alertIcon.innerHTML = `<i data-lucide="${config.icon}" class="w-5 h-5"></i>`;
+        alertMessage.textContent = message;
+
+        alerta.classList.remove('hidden');
+        alerta.style.transform = 'translateY(-10px)';
+        alerta.style.opacity = '0';
+
+        setTimeout(() => {
+            alerta.style.transform = 'translateY(0)';
+            alerta.style.opacity = '1';
+        }, 10);
+
+        // Re-initialize icons
+        window.lucide.createIcons();
+
+        if (duration > 0) {
+            setTimeout(() => this.hide(), duration);
+        }
+
+        utils.playSound(type === 'success' ? 'success' : type === 'error' ? 'error' : 'click');
+    },
+
+    hide() {
+        const alerta = document.getElementById('alerta');
+        alerta.style.transform = 'translateY(-10px)';
+        alerta.style.opacity = '0';
+
+        setTimeout(() => {
+            alerta.classList.add('hidden');
+        }, CONFIG.ANIMATION_DURATION);
+    }
+};
+
+// Enhanced Password Strength Analyzer
+const strengthAnalyzer = {
+    analyze(password) {
+        if (!password) return { score: 0, level: 'none', tips: [], checks: {} };
+
+        let score = 0;
+        const tips = [];
+        const checks = {
+            length: password.length >= 12,
+            longLength: password.length >= 16,
+            lowercase: /[a-z]/.test(password),
+            uppercase: /[A-Z]/.test(password),
+            numbers: /[0-9]/.test(password),
+            symbols: /[^A-Za-z0-9]/.test(password),
+            noRepeats: !/(.)\1{2,}/.test(password),
+            noSequential: !/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789)/i.test(password),
+            noCommon: !this.isCommonPassword(password)
+        };
+
+        // Calculate score
+        if (checks.length) score += 2;
+        if (checks.longLength) score += 1;
+        if (checks.lowercase) score += 1;
+        if (checks.uppercase) score += 1;
+        if (checks.numbers) score += 1;
+        if (checks.symbols) score += 2;
+        if (checks.noRepeats) score += 1;
+        if (checks.noSequential) score += 1;
+        if (checks.noCommon) score += 1;
+
+        // Generate tips
+        if (!checks.length) tips.push('Use pelo menos 12 caracteres');
+        if (!checks.longLength && checks.length) tips.push('Considere usar 16+ caracteres para maior segurança');
+        if (!checks.lowercase) tips.push('Adicione letras minúsculas');
+        if (!checks.uppercase) tips.push('Adicione letras maiúsculas');
+        if (!checks.numbers) tips.push('Adicione números');
+        if (!checks.symbols) tips.push('Adicione símbolos especiais');
+        if (!checks.noRepeats) tips.push('Evite caracteres repetidos consecutivos');
+        if (!checks.noSequential) tips.push('Evite sequências óbvias (abc, 123)');
+        if (!checks.noCommon) tips.push('Evite senhas comuns ou previsíveis');
+
+        // Determine level
+        let level;
+        if (score <= 3) level = 'very-weak';
+        else if (score <= 5) level = 'weak';
+        else if (score <= 7) level = 'fair';
+        else if (score <= 9) level = 'good';
+        else level = 'strong';
+
+        return { score, level, tips, checks };
+    },
+
+    isCommonPassword(password) {
+        const commonPasswords = [
+            '123456', 'password', '123456789', '12345678', '12345',
+            '1234567', '1234567890', 'qwerty', 'abc123', 'million2',
+            '000000', '1234', 'iloveyou', 'aaron431', 'password1',
+            'qqww1122', '123', 'omgpop', '123321', '654321'
+        ];
+        return commonPasswords.includes(password.toLowerCase());
+    },
+
+    display(password) {
+        const container = document.getElementById('strengthContainer');
+        const bar = document.getElementById('strengthBar');
+        const text = document.getElementById('strengthText');
+        const tipsContainer = document.getElementById('strengthTips');
+
+        if (!password) {
+            container.style.display = 'none';
+            return;
+        }
+
+        const analysis = this.analyze(password);
+        const percentage = Math.min((analysis.score / 10) * 100, 100);
+
+        container.style.display = 'block';
+
+        bar.style.width = `${percentage}%`;
+        bar.className = `h-full transition-all duration-500 ease-out rounded-full strength-${analysis.level}`;
+
+        const levelTexts = {
+            'very-weak': 'Muito Fraca',
+            'weak': 'Fraca',
+            'fair': 'Razoável',
+            'good': 'Boa',
+            'strong': 'Muito Forte'
+        };
+        text.textContent = levelTexts[analysis.level];
+        text.className = `text-sm font-bold text-${this.getLevelColor(analysis.level)}-600 dark:text-${this.getLevelColor(analysis.level)}-400`;
+
+        if (analysis.tips.length > 0) {
+            tipsContainer.innerHTML = analysis.tips.map(tip =>
+                `<div class="flex items-center space-x-2">
+                    <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                    <span>${tip}</span>
+                </div>`
+            ).join('');
+        } else {
+            tipsContainer.innerHTML = '<div class="flex items-center space-x-2 text-green-600 dark:text-green-400"><i data-lucide="check" class="w-3 h-3"></i><span>Senha muito segura!</span></div>';
+        }
+
+        window.lucide.createIcons();
+        return analysis;
+    },
+
+    getLevelColor(level) {
+        const colors = {
+            'very-weak': 'red',
+            'weak': 'orange',
+            'fair': 'yellow',
+            'good': 'green',
+            'strong': 'emerald'
+        };
+        return colors[level] || 'gray';
+    }
+};
+
+// Enhanced Statistics Display
+const statsDisplay = {
+    update(password) {
+        const container = document.getElementById('statsContainer');
+        const entropyValue = document.getElementById('entropyValue');
+        const crackTime = document.getElementById('crackTime');
+
+        if (!password) {
+            container.style.display = 'none';
+            return;
+        }
+
+        container.style.display = 'block';
+
+        const entropy = utils.calculateEntropy(password);
+        const crackTimeSeconds = utils.estimateCrackTime(entropy);
+
+        entropyValue.textContent = Math.round(entropy);
+        crackTime.textContent = utils.formatTime(crackTimeSeconds);
+    }
+};
+
+// Theme Management
+function initializeTheme() {
+    const savedTheme = storage.load(CONFIG.STORAGE_KEYS.THEME, 'light');
+    state.theme = savedTheme;
+    applyTheme(savedTheme);
+}
+
+function toggleTheme() {
+    const newTheme = state.theme === 'light' ? 'dark' : 'light';
+    state.theme = newTheme;
+    applyTheme(newTheme);
+    storage.save(CONFIG.STORAGE_KEYS.THEME, newTheme);
+    utils.playSound('click');
+}
+
+function applyTheme(theme) {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+}
+
+// Tab Management
+function switchTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+
+    // Remove active class from all tabs
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+    });
+
+    // Show selected tab content
+    document.getElementById(`content-${tabName}`).classList.remove('hidden');
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    state.currentTab = tabName;
+    utils.playSound('click');
+}
+
+// Advanced Options Toggle
+function toggleAdvancedOptions() {
+    const container = document.getElementById('advancedOptions');
+    const toggleText = document.getElementById('advancedToggleText');
+    const toggleIcon = document.getElementById('advancedToggleIcon');
+
+    const isHidden = container.classList.contains('hidden');
+
+    if (isHidden) {
+        container.classList.remove('hidden');
+        container.style.animation = 'slideDown 0.3s ease-out';
+        toggleText.textContent = 'Opções Básicas';
+        toggleIcon.style.transform = 'rotate(180deg)';
+        state.settings.showAdvanced = true;
+    } else {
+        container.style.animation = 'slideUp 0.3s ease-out';
+        setTimeout(() => {
+            container.classList.add('hidden');
+        }, 300);
+        toggleText.textContent = 'Opções Avançadas';
+        toggleIcon.style.transform = 'rotate(0deg)';
+        state.settings.showAdvanced = false;
+    }
+
+    saveSettings();
+    utils.playSound('click');
+}
+
+// Length Controls
+function updateLengthFromSlider() {
+    const slider = document.getElementById('lengthSlider');
+    const input = document.getElementById('lengthInput');
+    input.value = slider.value;
+}
+
+function updateLengthFromInput() {
+    const slider = document.getElementById('lengthSlider');
+    const input = document.getElementById('lengthInput');
+    const value = Math.max(4, Math.min(64, parseInt(input.value) || 16));
+    input.value = value;
+    slider.value = value;
+}
+
+function adjustLength(delta) {
+    const lengthInput = document.getElementById('lengthInput');
+    const lengthSlider = document.getElementById('lengthSlider');
+    const currentValue = parseInt(lengthInput.value) || 16;
+    const newValue = Math.max(4, Math.min(64, currentValue + delta));
+
+    lengthInput.value = newValue;
+    lengthSlider.value = newValue;
+
+    lengthInput.classList.add('animate-pulse');
+    setTimeout(() => lengthInput.classList.remove('animate-pulse'), 200);
+}
+
+function setLength(length) {
+    const lengthInput = document.getElementById('lengthInput');
+    const lengthSlider = document.getElementById('lengthSlider');
+    lengthInput.value = length;
+    lengthSlider.value = length;
+
+    lengthInput.classList.add('animate-pulse');
+    setTimeout(() => lengthInput.classList.remove('animate-pulse'), 200);
+}
+
+// Preset Management
+function applyPreset(presetName) {
+    const presets = {
+        basic: { length: 8, uppercase: true, lowercase: true, numbers: true, symbols: false },
+        strong: { length: 16, uppercase: true, lowercase: true, numbers: true, symbols: true },
+        ultra: { length: 32, uppercase: true, lowercase: true, numbers: true, symbols: true },
+        pin: { length: 6, uppercase: false, lowercase: false, numbers: true, symbols: false }
+    };
+
+    const preset = presets[presetName];
+    if (!preset) return;
+
+    // Apply length
+    setLength(preset.length);
+
+    // Apply character types
+    document.getElementById('includeUppercase').checked = preset.uppercase;
+    document.getElementById('includeLowercase').checked = preset.lowercase;
+    document.getElementById('includeNumbers').checked = preset.numbers;
+    document.getElementById('includeSymbols').checked = preset.symbols;
+
+    // Generate password with new settings
+    setTimeout(() => gerarSenha(), 100);
+
+    utils.playSound('click');
+}
+
+// Main Password Generation Function
+async function gerarSenha() {
+    const now = Date.now();
+    if (now - state.lastGenerateTime < CONFIG.DEBOUNCE_DELAY) {
+        return;
+    }
+    state.lastGenerateTime = now;
+
+    if (state.isGenerating) return;
+
+    const lengthInput = document.getElementById('lengthInput');
+    const length = parseInt(lengthInput.value) || 16;
+
+    // Validation
+    if (length < 4 || length > 64) {
+        alertSystem.show('O comprimento deve ser entre 4 e 64 caracteres.', 'warning');
+        lengthInput.classList.add('animate-shake');
+        setTimeout(() => lengthInput.classList.remove('animate-shake'), 500);
+        return;
+    }
+
+    // Check if at least one character type is selected
+    const includeUppercase = document.getElementById('includeUppercase').checked;
+    const includeLowercase = document.getElementById('includeLowercase').checked;
+    const includeNumbers = document.getElementById('includeNumbers').checked;
+    const includeSymbols = document.getElementById('includeSymbols').checked;
+
+    if (!includeUppercase && !includeLowercase && !includeNumbers && !includeSymbols) {
+        alertSystem.show('Selecione pelo menos um tipo de caractere!', 'warning');
+        return;
+    }
+
+    // UI updates
+    state.isGenerating = true;
+    const spinner = document.getElementById('spinner');
+    const btnGerar = document.getElementById('btnGerar');
+    const generateIcon = document.getElementById('generateIcon');
+    const generateText = document.getElementById('generateText');
+
+    spinner.classList.remove('hidden');
+    generateIcon.classList.add('hidden');
+    generateText.textContent = 'Gerando...';
+    btnGerar.disabled = true;
+    btnGerar.classList.add('loading');
+
+    try {
+        const response = await fetch(`${CONFIG.API_URL}?tamanho=${length}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            signal: AbortSignal.timeout(10000)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.senha) {
+            throw new Error('Resposta inválida da API');
+        }
+
+        // Success
+        state.currentPassword = data.senha;
+        const senhaInput = document.getElementById('senhaGerada');
+        senhaInput.value = data.senha;
+
+        // Animate password input
+        senhaInput.classList.add('animate-pulse-success');
+        setTimeout(() => senhaInput.classList.remove('animate-pulse-success'), 600);
+
+        // Update analysis
+        const analysis = strengthAnalyzer.display(data.senha);
+        statsDisplay.update(data.senha);
+
+        // Add to history
+        addToHistory(data.senha, analysis);
+
+        // Auto-copy if enabled
+        if (state.settings.autoCopy) {
+            await utils.copyToClipboard(data.senha);
+            alertSystem.show('Senha gerada e copiada automaticamente!', 'success');
+        } else {
+            alertSystem.show('Senha gerada com sucesso!', 'success');
+        }
+
+        state.retryCount = 0;
+
+    } catch (error) {
+        console.error('Erro ao gerar senha:', error);
+
+        // Retry logic
+        if (state.retryCount < CONFIG.MAX_RETRIES) {
+            state.retryCount++;
+            alertSystem.show(`Tentativa ${state.retryCount}/${CONFIG.MAX_RETRIES}...`, 'warning', 1500);
+
+            setTimeout(() => {
+                if (state.retryCount <= CONFIG.MAX_RETRIES) {
+                    gerarSenha();
+                }
+            }, CONFIG.RETRY_DELAY);
+            return;
+        }
+
+        // Final failure
+        document.getElementById('senhaGerada').value = '';
+        strengthAnalyzer.display('');
+        statsDisplay.update('');
+
+        let errorMessage = 'Erro ao gerar senha. ';
+        if (error.name === 'AbortError') {
+            errorMessage += 'Tempo limite excedido.';
+        } else if (!navigator.onLine) {
+            errorMessage += 'Verifique sua conexão.';
+        } else {
+            errorMessage += 'Tente novamente.';
+        }
+
+        alertSystem.show(errorMessage, 'error', 5000);
+        state.retryCount = 0;
+
+    } finally {
+        // Reset UI
+        state.isGenerating = false;
+        spinner.classList.add('hidden');
+        generateIcon.classList.remove('hidden');
+        generateText.textContent = 'Gerar Nova Senha';
+        btnGerar.disabled = false;
+        btnGerar.classList.remove('loading');
+    }
+}
+
+// Copy Password Function
+async function copiarSenha() {
+    const senhaInput = document.getElementById('senhaGerada');
+    const copyIcon = document.getElementById('copyIcon');
+
+    if (!senhaInput.value) {
+        alertSystem.show('Gere uma senha primeiro!', 'warning');
+        return;
+    }
+
+    try {
+        await utils.copyToClipboard(senhaInput.value);
+
+        // Visual feedback
+        senhaInput.classList.add('copied');
+        copyIcon.setAttribute('data-lucide', 'check');
+
+        showSuccessModal('Senha copiada para a área de transferência!');
+        utils.playSound('copy');
+
+        setTimeout(() => {
+            senhaInput.classList.remove('copied');
+            copyIcon.setAttribute('data-lucide', 'copy');
+            window.lucide.createIcons();
+        }, 1000);
+
+    } catch (error) {
+        console.error('Erro ao copiar:', error);
+        alertSystem.show('Erro ao copiar senha!', 'error');
+    }
+}
+
+// Toggle Password Visibility
+function toggleSenhaVisibilidade() {
+    const senhaInput = document.getElementById('senhaGerada');
+    const eyeIcon = document.getElementById('eyeIcon');
+
+    state.senhaVisivel = !state.senhaVisivel;
+    senhaInput.type = state.senhaVisivel ? 'text' : 'password';
+
+    eyeIcon.setAttribute('data-lucide', state.senhaVisivel ? 'eye-off' : 'eye');
+    window.lucide.createIcons();
+    utils.playSound('click');
+}
+
+// Analyzer Functions
+function toggleAnalyzeVisibility() {
+    const analyzeInput = document.getElementById('analyzeInput');
+    const eyeIcon = document.getElementById('analyzeEyeIcon');
+
+    state.analyzeVisible = !state.analyzeVisible;
+    analyzeInput.type = state.analyzeVisible ? 'text' : 'password';
+
+    eyeIcon.setAttribute('data-lucide', state.analyzeVisible ? 'eye-off' : 'eye');
+    window.lucide.createIcons();
+}
+
+function analyzePassword(password) {
+    const resultsContainer = document.getElementById('analysisResults');
+
+    if (!password) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+
+    resultsContainer.classList.remove('hidden');
+
+    // Detailed analysis
+    const analysis = strengthAnalyzer.analyze(password);
+    const entropy = utils.calculateEntropy(password);
+    const crackTime = utils.estimateCrackTime(entropy);
+
+    // Update detailed strength bar
+    const detailedBar = document.getElementById('detailedStrengthBar');
+    const detailedText = document.getElementById('detailedStrengthText');
+    const percentage = Math.min((analysis.score / 10) * 100, 100);
+
+    detailedBar.style.width = `${percentage}%`;
+    detailedBar.className = `h-full rounded-full transition-all duration-500 strength-${analysis.level}`;
+
+    const levelTexts = {
+        'very-weak': 'Muito Fraca',
+        'weak': 'Fraca',
+        'fair': 'Razoável',
+        'good': 'Boa',
+        'strong': 'Muito Forte'
+    };
+    detailedText.textContent = levelTexts[analysis.level];
+    detailedText.className = `text-sm font-semibold text-${strengthAnalyzer.getLevelColor(analysis.level)}-600 dark:text-${strengthAnalyzer.getLevelColor(analysis.level)}-400`;
+
+    // Update statistics
+    document.getElementById('analyzeLength').textContent = password.length;
+    document.getElementById('analyzeEntropy').textContent = `${Math.round(entropy)} bits`;
+    document.getElementById('analyzeCrackTime').textContent = utils.formatTime(crackTime);
+
+    // Count character types
+    let charTypes = 0;
+    if (/[a-z]/.test(password)) charTypes++;
+    if (/[A-Z]/.test(password)) charTypes++;
+    if (/[0-9]/.test(password)) charTypes++;
+    if (/[^A-Za-z0-9]/.test(password)) charTypes++;
+    document.getElementById('analyzeCharTypes').textContent = charTypes;
+
+    // Security checks
+    const checksContainer = document.getElementById('securityChecks');
+    const securityChecks = [
+        { check: analysis.checks.length, text: 'Comprimento adequado (12+ chars)', icon: 'shield' },
+        { check: analysis.checks.longLength, text: 'Comprimento forte (16+ chars)', icon: 'shield-check' },
+        { check: analysis.checks.lowercase, text: 'Contém letras minúsculas', icon: 'type' },
+        { check: analysis.checks.uppercase, text: 'Contém letras maiúsculas', icon: 'type' },
+        { check: analysis.checks.numbers, text: 'Contém números', icon: 'hash' },
+        { check: analysis.checks.symbols, text: 'Contém símbolos', icon: 'at-sign' },
+        { check: analysis.checks.noRepeats, text: 'Sem repetições excessivas', icon: 'repeat' },
+        { check: analysis.checks.noSequential, text: 'Sem sequências óbvias', icon: 'trending-up' },
+        { check: analysis.checks.noCommon, text: 'Não é uma senha comum', icon: 'alert-triangle' }
+    ];
+
+    checksContainer.innerHTML = securityChecks.map(item => `
+        <div class="flex items-center space-x-3">
+            <div class="w-5 h-5 rounded-full flex items-center justify-center ${item.check ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}">
+                <i data-lucide="${item.check ? 'check' : 'x'}" class="w-3 h-3 ${item.check ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}"></i>
+            </div>
+            <span class="text-sm ${item.check ? 'text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}">${item.text}</span>
+        </div>
+    `).join('');
+
+    // Recommendations
+    const recommendationsContainer = document.getElementById('recommendations');
+    if (analysis.tips.length > 0) {
+        recommendationsContainer.innerHTML = analysis.tips.map(tip => `
+            <div class="flex items-start space-x-2">
+                <i data-lucide="arrow-right" class="w-4 h-4 mt-0.5 text-blue-500 dark:text-blue-400"></i>
+                <span>${tip}</span>
+            </div>
+        `).join('');
+    } else {
+        recommendationsContainer.innerHTML = `
+            <div class="flex items-center space-x-2 text-green-600 dark:text-green-400">
+                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                <span>Sua senha atende a todos os critérios de segurança!</span>
+            </div>
+        `;
+    }
+
+    window.lucide.createIcons();
+}
+
+// Bulk Password Generation
+async function generateBulkPasswords() {
+    const countInput = document.getElementById('bulkCount');
+    const lengthInput = document.getElementById('bulkLength');
+    const count = Math.max(1, Math.min(CONFIG.MAX_BULK_PASSWORDS, parseInt(countInput.value) || 5));
+    const length = Math.max(4, Math.min(64, parseInt(lengthInput.value) || 16));
+
+    const btnBulkGenerate = document.getElementById('btnBulkGenerate');
+    btnBulkGenerate.disabled = true;
+    btnBulkGenerate.innerHTML = `
+        <div class="flex items-center justify-center space-x-3">
+            <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span>Gerando ${count} senhas...</span>
+        </div>
+    `;
+
+    try {
+        const passwords = [];
+        for (let i = 0; i < count; i++) {
+            const response = await fetch(`${CONFIG.API_URL}?tamanho=${length}`);
+            const data = await response.json();
+            if (data.senha) {
+                passwords.push({
+                    id: utils.generateId(),
+                    password: data.senha,
+                    length: length,
+                    strength: strengthAnalyzer.analyze(data.senha)
+                });
+            }
+
+            // Small delay to prevent overwhelming the API
+            if (i < count - 1) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
-    </script>
-</head>
 
-<body
-    class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900 dark:to-indigo-900 font-inter transition-all duration-500">
-    <!-- Background Effects -->
-    <div class="fixed inset-0 overflow-hidden pointer-events-none">
-        <div
-            class="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 dark:bg-purple-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float">
-        </div>
-        <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-yellow-300 dark:bg-yellow-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float"
-            style="animation-delay: 2s;"></div>
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-300 dark:bg-pink-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-xl opacity-70 animate-float"
-            style="animation-delay: 4s;"></div>
-    </div>
+        state.bulkPasswords = passwords;
+        displayBulkPasswords(passwords);
+        alertSystem.show(`${passwords.length} senhas geradas com sucesso!`, 'success');
 
-    <!-- Navigation -->
-    <nav class="relative z-50 p-4">
-        <div class="max-w-7xl mx-auto flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div
-                    class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                    <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white">SecurePass Pro</h1>
-                    <p class="text-xs text-gray-600 dark:text-gray-400">Ultra Secure Password Generator</p>
-                </div>
+    } catch (error) {
+        console.error('Erro ao gerar senhas em lote:', error);
+        alertSystem.show('Erro ao gerar senhas em lote!', 'error');
+    } finally {
+        btnBulkGenerate.disabled = false;
+        btnBulkGenerate.innerHTML = `
+            <div class="flex items-center justify-center space-x-3">
+                <i data-lucide="layers" class="w-5 h-5"></i>
+                <span>Gerar Senhas em Lote</span>
             </div>
+        `;
+        window.lucide.createIcons();
+    }
+}
 
-            <div class="flex items-center space-x-3">
-                <!-- Theme Toggle -->
-                <button onclick="toggleTheme()" id="themeToggle"
-                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200 group"
-                    title="Alternar tema">
-                    <i data-lucide="sun" class="w-5 h-5 text-gray-700 dark:text-gray-300 dark:hidden"></i>
-                    <i data-lucide="moon" class="w-5 h-5 text-gray-700 dark:text-gray-300 hidden dark:block"></i>
-                </button>
+function displayBulkPasswords(passwords) {
+    const resultsContainer = document.getElementById('bulkResults');
+    const listContainer = document.getElementById('bulkPasswordsList');
 
-                <!-- Settings -->
-                <button onclick="toggleSettings()"
-                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
-                    title="Configurações">
-                    <i data-lucide="settings" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
-                </button>
+    resultsContainer.classList.remove('hidden');
 
-                <!-- History -->
-                <button onclick="toggleHistory()"
-                    class="p-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-all duration-200"
-                    title="Histórico">
-                    <i data-lucide="history" class="w-5 h-5 text-gray-700 dark:text-gray-300"></i>
-                    <span id="historyCount"
-                        class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center hidden">0</span>
-                </button>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main Container -->
-    <div class="relative min-h-screen flex items-center justify-center p-4 pt-0">
-        <!-- Main Card -->
-        <div class="w-full max-w-2xl mx-auto">
-            <div
-                class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-700/20 overflow-hidden animate-slide-up">
-                <!-- Header -->
-                <div class="relative bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-8 text-center">
-                    <div class="absolute inset-0 bg-black/10"></div>
-                    <div class="relative z-10">
-                        <div
-                            class="inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-3xl mb-6 animate-bounce-in">
-                            <i data-lucide="key-round" class="w-10 h-10 text-white"></i>
-                        </div>
-                        <h2 class="text-3xl font-bold text-white mb-3">Gerador Ultra Seguro</h2>
-                        <p class="text-blue-100 text-sm max-w-md mx-auto">Crie senhas ultra-seguras com análise
-                            avançada, histórico completo e múltiplas opções de personalização</p>
-                    </div>
-
-                    <!-- Animated decorations -->
-                    <div
-                        class="absolute top-6 right-6 w-12 h-12 border-2 border-white/30 rounded-full animate-scale-pulse">
-                    </div>
-                    <div class="absolute bottom-6 left-6 w-8 h-8 border-2 border-white/30 rounded-full animate-scale-pulse"
-                        style="animation-delay: 1s;"></div>
-                </div>
-
-                <!-- Tabs -->
-                <div class="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex">
-                        <button onclick="switchTab('generator')" id="tab-generator"
-                            class="tab-button active flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
-                            <i data-lucide="key" class="w-4 h-4 inline mr-2"></i>
-                            Gerador
-                        </button>
-                        <button onclick="switchTab('analyzer')" id="tab-analyzer"
-                            class="tab-button flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
-                            <i data-lucide="search" class="w-4 h-4 inline mr-2"></i>
-                            Analisador
-                        </button>
-                        <button onclick="switchTab('bulk')" id="tab-bulk"
-                            class="tab-button flex-1 py-4 px-6 text-sm font-semibold transition-all duration-200">
-                            <i data-lucide="layers" class="w-4 h-4 inline mr-2"></i>
-                            Múltiplas
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Alert -->
-                <div id="alerta" class="hidden mx-6 mt-6 p-4 rounded-xl border transition-all duration-300 transform">
-                    <div class="flex items-center space-x-3">
-                        <div id="alertIcon" class="flex-shrink-0"></div>
-                        <div id="alertMessage" class="text-sm font-medium flex-1"></div>
-                        <button onclick="alertSystem.hide()"
-                            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Tab Contents -->
-                <div class="p-6">
-                    <!-- Generator Tab -->
-                    <div id="content-generator" class="tab-content space-y-6">
-                        <!-- Advanced Options Toggle -->
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Configurações de Geração
-                            </h3>
-                            <button onclick="toggleAdvancedOptions()"
-                                class="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium">
-                                <span id="advancedToggleText">Opções Avançadas</span>
-                                <i data-lucide="chevron-down" class="w-4 h-4 inline ml-1 transition-transform"
-                                    id="advancedToggleIcon"></i>
-                            </button>
-                        </div>
-
-                        <!-- Basic Options -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Length Input -->
-                            <div class="space-y-3">
-                                <label for="lengthInput"
-                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Comprimento da senha
-                                </label>
-                                <div class="relative">
-                                    <input type="range" id="lengthSlider" min="4" max="64" value="16"
-                                        class="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                                        oninput="updateLengthFromSlider()">
-                                    <input type="number" id="lengthInput" min="4" max="64" value="16"
-                                        class="mt-2 w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 focus:bg-white dark:focus:bg-gray-600 transition-all duration-200 text-center text-lg font-semibold text-gray-900 dark:text-white"
-                                        oninput="updateLengthFromInput()">
-                                </div>
-                            </div>
-
-                            <!-- Character Types -->
-                            <div class="space-y-3">
-                                <label class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Tipos de caracteres
-                                </label>
-                                <div class="space-y-3">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="includeUppercase" checked>
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Maiúsculas (A-Z)</span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">26 chars</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="includeLowercase" checked>
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Minúsculas (a-z)</span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">26 chars</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="includeNumbers" checked>
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Números (0-9)</span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">10 chars</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="includeSymbols" checked>
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Símbolos (!@#$%)</span>
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">32 chars</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Advanced Options -->
-                        <div id="advancedOptions"
-                            class="hidden space-y-6 border-t border-gray-200 dark:border-gray-700 pt-6">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <!-- Exclude Similar -->
-                                <div class="space-y-3">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="excludeSimilar">
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Excluir caracteres similares</span>
-                                    </label>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">Remove: 0, O, l, I, 1</p>
-                                </div>
-
-                                <!-- Exclude Ambiguous -->
-                                <div class="space-y-3">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="excludeAmbiguous">
-                                        <span class="checkmark"></span>
-                                        <span class="text-sm">Excluir caracteres ambíguos</span>
-                                    </label>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 ml-6">Remove:
-                                        {}[]()\/'"~,;&lt;&gt;</p>
-                                </div>
-
-                                <!-- Custom Characters -->
-                                <div class="space-y-3 md:col-span-2">
-                                    <label for="customChars"
-                                        class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                        Caracteres personalizados
-                                    </label>
-                                    <input type="text" id="customChars" placeholder="Digite caracteres adicionais..."
-                                        class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white font-mono">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Generate Button -->
-                        <button onclick="gerarSenha()" id="btnGerar"
-                            class="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none group">
-                            <div class="flex items-center justify-center space-x-3">
-                                <div id="spinner"
-                                    class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin">
-                                </div>
-                                <i data-lucide="refresh-cw" class="w-5 h-5 group-hover:animate-spin"
-                                    id="generateIcon"></i>
-                                <span id="generateText">Gerar Nova Senha</span>
-                            </div>
-                        </button>
-
-                        <!-- Generated Password -->
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label for="senhaGerada"
-                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Senha gerada
-                                </label>
-                                <div class="flex items-center space-x-2">
-                                    <button onclick="addToFavorites()" id="favoriteBtn"
-                                        class="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
-                                        title="Adicionar aos favoritos">
-                                        <i data-lucide="star" class="w-4 h-4"></i>
-                                    </button>
-                                    <button onclick="sharePassword()"
-                                        class="p-2 text-gray-400 hover:text-blue-500 transition-colors"
-                                        title="Compartilhar">
-                                        <i data-lucide="share-2" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="relative">
-                                <input type="password" id="senhaGerada" readonly
-                                    class="w-full px-4 py-4 pr-32 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl font-mono text-lg transition-all duration-200 focus:border-blue-500 dark:focus:border-blue-400 text-gray-900 dark:text-white"
-                                    placeholder="Sua senha aparecerá aqui...">
-                                <div class="absolute inset-y-0 right-0 flex items-center pr-2 space-x-1">
-                                    <button type="button" onclick="toggleSenhaVisibilidade()" id="toggleSenha"
-                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-all duration-200"
-                                        title="Mostrar/Ocultar senha">
-                                        <i data-lucide="eye" class="w-4 h-4" id="eyeIcon"></i>
-                                    </button>
-                                    <button type="button" onclick="copiarSenha()" id="btnCopiar"
-                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 disabled:opacity-50"
-                                        title="Copiar senha">
-                                        <i data-lucide="copy" class="w-4 h-4" id="copyIcon"></i>
-                                    </button>
-                                    <button type="button" onclick="downloadPassword()"
-                                        class="p-2 text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200"
-                                        title="Baixar como arquivo">
-                                        <i data-lucide="download" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Password Analysis -->
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <!-- Strength Meter -->
-                            <div class="space-y-3" id="strengthContainer" style="display: none;">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">Força da
-                                        senha</span>
-                                    <span id="strengthText" class="text-sm font-bold"></span>
-                                </div>
-                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                                    <div id="strengthBar"
-                                        class="h-full transition-all duration-500 ease-out rounded-full"></div>
-                                </div>
-                                <div id="strengthTips" class="text-xs text-gray-600 dark:text-gray-400 space-y-1"></div>
-                            </div>
-
-                            <!-- Statistics -->
-                            <div class="bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-blue-900/30 rounded-xl p-4"
-                                id="statsContainer" style="display: none;">
-                                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Estatísticas
-                                </h3>
-                                <div class="grid grid-cols-2 gap-4 text-center">
-                                    <div>
-                                        <div id="entropyValue"
-                                            class="text-2xl font-bold text-blue-600 dark:text-blue-400">-</div>
-                                        <div class="text-xs text-gray-600 dark:text-gray-400">Bits de entropia</div>
-                                    </div>
-                                    <div>
-                                        <div id="crackTime"
-                                            class="text-2xl font-bold text-purple-600 dark:text-purple-400">-</div>
-                                        <div class="text-xs text-gray-600 dark:text-gray-400">Tempo para quebrar</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Quick Presets -->
-                        <div class="space-y-3">
-                            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Presets rápidos</h3>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <button onclick="applyPreset('basic')" class="preset-btn">
-                                    <i data-lucide="shield" class="w-4 h-4"></i>
-                                    <span>Básica</span>
-                                    <small>8 chars</small>
-                                </button>
-                                <button onclick="applyPreset('strong')" class="preset-btn">
-                                    <i data-lucide="shield-check" class="w-4 h-4"></i>
-                                    <span>Forte</span>
-                                    <small>16 chars</small>
-                                </button>
-                                <button onclick="applyPreset('ultra')" class="preset-btn">
-                                    <i data-lucide="shield-alert" class="w-4 h-4"></i>
-                                    <span>Ultra</span>
-                                    <small>32 chars</small>
-                                </button>
-                                <button onclick="applyPreset('pin')" class="preset-btn">
-                                    <i data-lucide="hash" class="w-4 h-4"></i>
-                                    <span>PIN</span>
-                                    <small>4-6 nums</small>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Analyzer Tab -->
-                    <div id="content-analyzer" class="tab-content hidden space-y-6">
-                        <div class="text-center">
-                            <i data-lucide="search" class="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4"></i>
-                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Analisador de Senhas
-                            </h3>
-                            <p class="text-gray-600 dark:text-gray-400 mb-6">Analise a força e segurança de qualquer
-                                senha</p>
-                        </div>
-
-                        <div class="space-y-4">
-                            <label for="analyzeInput"
-                                class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                Digite a senha para análise
-                            </label>
-                            <div class="relative">
-                                <input type="password" id="analyzeInput" placeholder="Digite sua senha aqui..."
-                                    class="w-full px-4 py-4 pr-12 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white font-mono"
-                                    oninput="analyzePassword(this.value)">
-                                <button type="button" onclick="toggleAnalyzeVisibility()"
-                                    class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                                    <i data-lucide="eye" class="w-4 h-4" id="analyzeEyeIcon"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Analysis Results -->
-                        <div id="analysisResults" class="hidden space-y-6">
-                            <!-- Detailed Strength -->
-                            <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
-                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Análise Detalhada</h4>
-                                <div class="space-y-4">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-gray-600 dark:text-gray-400">Força geral</span>
-                                        <div class="flex items-center space-x-2">
-                                            <div class="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                                <div id="detailedStrengthBar"
-                                                    class="h-full rounded-full transition-all duration-500"></div>
-                                            </div>
-                                            <span id="detailedStrengthText" class="text-sm font-semibold"></span>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-4 text-sm">
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600 dark:text-gray-400">Comprimento:</span>
-                                            <span id="analyzeLength"
-                                                class="font-semibold text-gray-900 dark:text-white">-</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600 dark:text-gray-400">Entropia:</span>
-                                            <span id="analyzeEntropy"
-                                                class="font-semibold text-gray-900 dark:text-white">-</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600 dark:text-gray-400">Tempo para quebrar:</span>
-                                            <span id="analyzeCrackTime"
-                                                class="font-semibold text-gray-900 dark:text-white">-</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-gray-600 dark:text-gray-400">Tipos de char:</span>
-                                            <span id="analyzeCharTypes"
-                                                class="font-semibold text-gray-900 dark:text-white">-</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Security Checks -->
-                            <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
-                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Verificações de Segurança
-                                </h4>
-                                <div id="securityChecks" class="space-y-3"></div>
-                            </div>
-
-                            <!-- Recommendations -->
-                            <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-6">
-                                <h4 class="font-semibold text-gray-900 dark:text-white mb-4">Recomendações</h4>
-                                <div id="recommendations" class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bulk Generator Tab -->
-                    <div id="content-bulk" class="tab-content hidden space-y-6">
-                        <div class="text-center">
-                            <i data-lucide="layers" class="w-16 h-16 text-gray-400 dark:text-gray-600 mx-auto mb-4"></i>
-                            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Gerador em Lote</h3>
-                            <p class="text-gray-600 dark:text-gray-400 mb-6">Gere múltiplas senhas de uma só vez</p>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-4">
-                                <label for="bulkCount"
-                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Quantidade de senhas
-                                </label>
-                                <input type="number" id="bulkCount" min="1" max="100" value="5"
-                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white">
-                            </div>
-
-                            <div class="space-y-4">
-                                <label for="bulkLength"
-                                    class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Comprimento das senhas
-                                </label>
-                                <input type="number" id="bulkLength" min="4" max="64" value="16"
-                                    class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-xl focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 text-gray-900 dark:text-white">
-                            </div>
-                        </div>
-
-                        <button onclick="generateBulkPasswords()" id="btnBulkGenerate"
-                            class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg active:scale-95">
-                            <div class="flex items-center justify-center space-x-3">
-                                <i data-lucide="layers" class="w-5 h-5"></i>
-                                <span>Gerar Senhas em Lote</span>
-                            </div>
-                        </button>
-
-                        <!-- Bulk Results -->
-                        <div id="bulkResults" class="hidden space-y-4">
-                            <div class="flex items-center justify-between">
-                                <h4 class="font-semibold text-gray-900 dark:text-white">Senhas Geradas</h4>
-                                <div class="flex space-x-2">
-                                    <button onclick="copyAllPasswords()"
-                                        class="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors">
-                                        Copiar Todas
-                                    </button>
-                                    <button onclick="exportPasswords()"
-                                        class="text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors">
-                                        Exportar
-                                    </button>
-                                </div>
-                            </div>
-                            <div id="bulkPasswordsList" class="space-y-2 max-h-64 overflow-y-auto"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div
-                    class="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 text-center border-t border-gray-200 dark:border-gray-700">
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
-                        Desenvolvido com ❤️ por
-                        <a href="https://github.com/rafaelgogge" target="_blank" rel="noopener noreferrer"
-                            class="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors">
-                            Rafael V. Gogge
-                        </a>
-                        • Versão 2.0 Pro
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modals and Overlays -->
-
-    <!-- Settings Modal -->
-    <div id="settingsModal"
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md mx-4 w-full max-h-[80vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Configurações</h3>
-                <button onclick="toggleSettings()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <div class="space-y-6">
-                <!-- Auto-generate -->
+    listContainer.innerHTML = passwords.map((item, index) => `
+        <div class="bulk-password-item">
+            <div class="flex-1">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="font-medium text-gray-900 dark:text-white">Auto-gerar</h4>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Gerar senha automaticamente ao carregar</p>
+                    <span class="font-mono text-sm">${item.password}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs px-2 py-1 rounded-full bg-${strengthAnalyzer.getLevelColor(item.strength.level)}-100 dark:bg-${strengthAnalyzer.getLevelColor(item.strength.level)}-900/30 text-${strengthAnalyzer.getLevelColor(item.strength.level)}-700 dark:text-${strengthAnalyzer.getLevelColor(item.strength.level)}-300">
+                            ${item.strength.level === 'very-weak' ? 'Muito Fraca' :
+            item.strength.level === 'weak' ? 'Fraca' :
+                item.strength.level === 'fair' ? 'Razoável' :
+                    item.strength.level === 'good' ? 'Boa' : 'Muito Forte'}
+                        </span>
+                        <button onclick="copyBulkPassword('${item.password}')" class="p-1 text-gray-400 hover:text-blue-500 transition-colors" title="Copiar">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
                     </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="autoGenerate" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
                 </div>
-
-                <!-- Auto-copy -->
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="font-medium text-gray-900 dark:text-white">Auto-copiar</h4>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Copiar automaticamente após gerar</p>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="autoCopy">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-
-                <!-- Sound effects -->
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h4 class="font-medium text-gray-900 dark:text-white">Efeitos sonoros</h4>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Sons de feedback para ações</p>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="soundEffects">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-
-                <!-- Clear history -->
-                <button onclick="clearHistory()"
-                    class="w-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 py-3 px-4 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
-                    <i data-lucide="trash-2" class="w-4 h-4 inline mr-2"></i>
-                    Limpar Histórico
-                </button>
             </div>
         </div>
-    </div>
+    `).join('');
 
-    <!-- History Modal -->
-    <div id="historyModal"
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl mx-4 w-full max-h-[80vh] overflow-y-auto">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Histórico de Senhas</h3>
-                <button onclick="toggleHistory()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+    window.lucide.createIcons();
+}
+
+async function copyBulkPassword(password) {
+    try {
+        await utils.copyToClipboard(password);
+        alertSystem.show('Senha copiada!', 'success', 2000);
+        utils.playSound('copy');
+    } catch (error) {
+        alertSystem.show('Erro ao copiar senha!', 'error');
+    }
+}
+
+async function copyAllPasswords() {
+    if (state.bulkPasswords.length === 0) return;
+
+    const allPasswords = state.bulkPasswords.map(item => item.password).join('\n');
+
+    try {
+        await utils.copyToClipboard(allPasswords);
+        alertSystem.show(`${state.bulkPasswords.length} senhas copiadas!`, 'success');
+        utils.playSound('copy');
+    } catch (error) {
+        alertSystem.show('Erro ao copiar senhas!', 'error');
+    }
+}
+
+function exportPasswords() {
+    if (state.bulkPasswords.length === 0) return;
+
+    const csvContent = 'Senha,Comprimento,Força,Entropia\n' +
+        state.bulkPasswords.map(item => {
+            const entropy = utils.calculateEntropy(item.password);
+            return `"${item.password}",${item.length},"${item.strength.level}",${Math.round(entropy)}`;
+        }).join('\n');
+
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+    utils.downloadFile(csvContent, `senhas-${timestamp}.csv`, 'text/csv');
+
+    alertSystem.show('Senhas exportadas com sucesso!', 'success');
+    utils.playSound('success');
+}
+
+// History Management
+function addToHistory(password, analysis) {
+    const historyItem = {
+        id: utils.generateId(),
+        password: password,
+        timestamp: new Date(),
+        strength: analysis.level,
+        length: password.length,
+        entropy: Math.round(utils.calculateEntropy(password))
+    };
+
+    state.history.unshift(historyItem);
+
+    // Keep only the last MAX_HISTORY items
+    if (state.history.length > CONFIG.MAX_HISTORY) {
+        state.history = state.history.slice(0, CONFIG.MAX_HISTORY);
+    }
+
+    saveHistory();
+    updateHistoryCount();
+}
+
+function updateHistoryCount() {
+    const countElement = document.getElementById('historyCount');
+    if (state.history.length > 0) {
+        countElement.textContent = state.history.length;
+        countElement.classList.remove('hidden');
+    } else {
+        countElement.classList.add('hidden');
+    }
+}
+
+function toggleHistory() {
+    const modal = document.getElementById('historyModal');
+    const isHidden = modal.classList.contains('hidden');
+
+    if (isHidden) {
+        displayHistory();
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+    } else {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, CONFIG.ANIMATION_DURATION);
+    }
+
+    utils.playSound('click');
+}
+
+function displayHistory() {
+    const listContainer = document.getElementById('historyList');
+
+    if (state.history.length === 0) {
+        listContainer.innerHTML = `
+            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                <i data-lucide="history" class="w-12 h-12 mx-auto mb-4 opacity-50"></i>
+                <p>Nenhuma senha no histórico</p>
             </div>
+        `;
+        window.lucide.createIcons();
+        return;
+    }
 
-            <div id="historyList" class="space-y-3">
-                <!-- History items will be populated here -->
+    listContainer.innerHTML = state.history.map(item => `
+        <div class="history-item">
+            <div class="flex-1">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="font-mono text-sm">${item.password}</span>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="copyHistoryPassword('${item.password}')" class="p-1 text-gray-400 hover:text-blue-500 transition-colors" title="Copiar">
+                            <i data-lucide="copy" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="addToFavorites('${item.password}')" class="p-1 text-gray-400 hover:text-yellow-500 transition-colors" title="Favoritar">
+                            <i data-lucide="star" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="removeFromHistory('${item.id}')" class="p-1 text-gray-400 hover:text-red-500 transition-colors" title="Remover">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>${utils.formatDate(new Date(item.timestamp))}</span>
+                    <div class="flex items-center space-x-4">
+                        <span>${item.length} chars</span>
+                        <span>${item.entropy} bits</span>
+                        <span class="px-2 py-1 rounded-full bg-${strengthAnalyzer.getLevelColor(item.strength)}-100 dark:bg-${strengthAnalyzer.getLevelColor(item.strength)}-900/30 text-${strengthAnalyzer.getLevelColor(item.strength)}-700 dark:text-${strengthAnalyzer.getLevelColor(item.strength)}-300">
+                            ${item.strength === 'very-weak' ? 'Muito Fraca' :
+            item.strength === 'weak' ? 'Fraca' :
+                item.strength === 'fair' ? 'Razoável' :
+                    item.strength === 'good' ? 'Boa' : 'Muito Forte'}
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
+    `).join('');
 
-    <!-- Success Modal -->
-    <div id="successModal"
-        class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-        <div
-            class="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-sm mx-4 text-center transform scale-95 transition-transform">
-            <div
-                class="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="check" class="w-8 h-8 text-green-600 dark:text-green-400"></i>
-            </div>
-            <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Sucesso!</h3>
-            <p id="successMessage" class="text-gray-600 dark:text-gray-400 text-sm mb-4">Operação realizada com sucesso.
-            </p>
-            <button onclick="closeSuccessModal()"
-                class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors">
-                Entendi
-            </button>
-        </div>
-    </div>
+    window.lucide.createIcons();
+}
 
-    <script src="script.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Inicialize tudo só depois do DOM estar pronto!
-            lucide.createIcons();
-            initializeTheme();
-            initializeApp();
-        });
-    </script>
-</body>
+async function copyHistoryPassword(password) {
+    try {
+        await utils.copyToClipboard(password);
+        alertSystem.show('Senha copiada!', 'success', 2000);
+        utils.playSound('copy');
+    } catch (error) {
+        alertSystem.show('Erro ao copiar senha!', 'error');
+    }
+}
 
-</html>
+function removeFromHistory(id) {
+    state.history = state.history.filter(item => item.id !== id);
+    saveHistory();
+    updateHistoryCount();
+    displayHistory();
+    alertSystem.show('Item removido do histórico', 'info', 2000);
+}
+
+function clearHistory() {
+    if (state.history.length === 0) return;
+
+    if (confirm('Tem certeza que deseja limpar todo o histórico?')) {
+        state.history = [];
+        saveHistory();
+        updateHistoryCount();
+        displayHistory();
+        alertSystem.show('Histórico limpo com sucesso!', 'success');
+        utils.playSound('success');
+    }
+}
+
+// Favorites Management
+function addToFavorites(password = null) {
+    const targetPassword = password || state.currentPassword;
+
+    if (!targetPassword) {
+        alertSystem.show('Nenhuma senha para adicionar aos favoritos!', 'warning');
+        return;
+    }
+
+    // Check if already in favorites
+    if (state.favorites.some(fav => fav.password === targetPassword)) {
+        alertSystem.show('Senha já está nos favoritos!', 'info');
+        return;
+    }
+
+    const favoriteItem = {
+        id: utils.generateId(),
+        password: targetPassword,
+        timestamp: new Date(),
+        strength: strengthAnalyzer.analyze(targetPassword).level
+    };
+
+    state.favorites.push(favoriteItem);
+    saveFavorites();
+
+    // Update favorite button
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    if (favoriteBtn) {
+        favoriteBtn.innerHTML = '<i data-lucide="star" class="w-4 h-4 text-yellow-500"></i>';
+        window.lucide.createIcons();
+    }
+
+    alertSystem.show('Senha adicionada aos favoritos!', 'success');
+    utils.playSound('success');
+}
+
+// Settings Management
+function toggleSettings() {
+    const modal = document.getElementById('settingsModal');
+    const isHidden = modal.classList.contains('hidden');
+
+    if (isHidden) {
+        loadSettingsUI();
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+    } else {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, CONFIG.ANIMATION_DURATION);
+    }
+
+    utils.playSound('click');
+}
+
+function loadSettingsUI() {
+    document.getElementById('autoGenerate').checked = state.settings.autoGenerate;
+    document.getElementById('autoCopy').checked = state.settings.autoCopy;
+    document.getElementById('soundEffects').checked = state.settings.soundEffects;
+}
+
+function saveSettings() {
+    state.settings.autoGenerate = document.getElementById('autoGenerate')?.checked ?? state.settings.autoGenerate;
+    state.settings.autoCopy = document.getElementById('autoCopy')?.checked ?? state.settings.autoCopy;
+    state.settings.soundEffects = document.getElementById('soundEffects')?.checked ?? state.settings.soundEffects;
+
+    storage.save(CONFIG.STORAGE_KEYS.SETTINGS, state.settings);
+}
+
+function saveHistory() {
+    storage.save(CONFIG.STORAGE_KEYS.HISTORY, state.history);
+}
+
+function saveFavorites() {
+    storage.save(CONFIG.STORAGE_KEYS.FAVORITES, state.favorites);
+}
+
+// Additional Features
+function downloadPassword() {
+    if (!state.currentPassword) {
+        alertSystem.show('Nenhuma senha para baixar!', 'warning');
+        return;
+    }
+
+    const content = `Senha gerada: ${state.currentPassword}\nData: ${utils.formatDate(new Date())}\nComprimento: ${state.currentPassword.length} caracteres\nEntropia: ${Math.round(utils.calculateEntropy(state.currentPassword))} bits`;
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+
+    utils.downloadFile(content, `senha-${timestamp}.txt`, 'text/plain');
+    alertSystem.show('Senha baixada com sucesso!', 'success');
+    utils.playSound('success');
+}
+
+function sharePassword() {
+    if (!state.currentPassword) {
+        alertSystem.show('Nenhuma senha para compartilhar!', 'warning');
+        return;
+    }
+
+    if (navigator.share) {
+        navigator.share({
+            title: 'Senha Segura Gerada',
+            text: `Senha: ${state.currentPassword}`,
+        }).catch(console.error);
+    } else {
+        // Fallback: copy to clipboard
+        copiarSenha();
+    }
+
+    utils.playSound('click');
+}
+
+// Success Modal
+function showSuccessModal(message = 'Operação realizada com sucesso.') {
+    const modal = document.getElementById('successModal');
+    const messageElement = document.getElementById('successMessage');
+
+    messageElement.textContent = message;
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
+
+    setTimeout(() => {
+        closeSuccessModal();
+    }, 3000);
+}
+
+function closeSuccessModal() {
+    const modal = document.getElementById('successModal');
+    modal.classList.remove('show');
+
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, CONFIG.ANIMATION_DURATION);
+}
+
+// Initialization
+function initializeApp() {
+    // Load saved data
+    state.settings = { ...state.settings, ...storage.load(CONFIG.STORAGE_KEYS.SETTINGS, {}) };
+    state.history = storage.load(CONFIG.STORAGE_KEYS.HISTORY, []);
+    state.favorites = storage.load(CONFIG.STORAGE_KEYS.FAVORITES, []);
+
+    // Update UI
+    updateHistoryCount();
+
+    // Show advanced options if previously enabled
+    if (state.settings.showAdvanced) {
+        toggleAdvancedOptions();
+    }
+
+    // Auto-generate if enabled
+    if (state.settings.autoGenerate) {
+        setTimeout(() => {
+            gerarSenha();
+        }, 500);
+    }
+
+    // Event listeners
+    setupEventListeners();
+}
+
+function setupEventListeners() {
+    const lengthInput = document.getElementById('lengthInput');
+    const lengthSlider = document.getElementById('lengthSlider');
+
+    // Length input events
+    lengthInput.addEventListener('keyup', function (e) {
+        if (e.key === 'Enter') {
+            gerarSenha();
+        }
+    });
+
+    lengthInput.addEventListener('input', utils.debounce(function () {
+        updateLengthFromInput();
+        const value = parseInt(this.value);
+        if (value < 4 || value > 64) {
+            this.classList.add('border-red-500', 'dark:border-red-400');
+        } else {
+            this.classList.remove('border-red-500', 'dark:border-red-400');
+        }
+    }, 300));
+
+    lengthSlider.addEventListener('input', updateLengthFromSlider);
+
+    // Settings change events
+    document.addEventListener('change', function (e) {
+        if (e.target.closest('#settingsModal')) {
+            saveSettings();
+        }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function (e) {
+        // Ctrl/Cmd + G to generate
+        if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+            e.preventDefault();
+            gerarSenha();
+        }
+
+        // Ctrl/Cmd + C to copy (when password field is focused)
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c' &&
+            (document.activeElement.id === 'senhaGerada' || document.activeElement.id === 'analyzeInput')) {
+            e.preventDefault();
+            copiarSenha();
+        }
+
+        // Escape to close modals
+        if (e.key === 'Escape') {
+            closeSuccessModal();
+            document.getElementById('settingsModal').classList.add('hidden');
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        // Ctrl/Cmd + H for history
+        if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+            e.preventDefault();
+            toggleHistory();
+        }
+
+        // Ctrl/Cmd + , for settings
+        if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+            e.preventDefault();
+            toggleSettings();
+        }
+    });
+
+    // Online/offline detection
+    window.addEventListener('online', () => {
+        alertSystem.show('Conexão restaurada!', 'success', 2000);
+    });
+
+    window.addEventListener('offline', () => {
+        alertSystem.show('Sem conexão com a internet', 'warning', 0);
+    });
+
+    // Visibility change (tab focus)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            // Refresh icons when tab becomes visible
+            setTimeout(() => window.lucide.createIcons(), 100);
+        }
+    });
+}
+
+// Performance monitoring
+if ('performance' in window) {
+    window.addEventListener('load', () => {
+        const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
+        console.log(`Página carregada em ${loadTime}ms`);
+    });
+}
+
+// Error handling
+window.addEventListener('error', (e) => {
+    console.error('Erro global:', e.error);
+    alertSystem.show('Ocorreu um erro inesperado', 'error');
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+    console.error('Promise rejeitada:', e.reason);
+    alertSystem.show('Erro de conexão', 'error');
+});
+
+// Service Worker registration (for PWA capabilities)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+                console.log('SW registered: ', registration);
+            })
+            .catch(registrationError => {
+                console.log('SW registration failed: ', registrationError);
+            });
+    });
+}
+
+// Declare lucide variable
+window.lucide = {
+    createIcons: function () {
+        // Placeholder for lucide icon creation logic
+        console.log('Lucide icons created');
+    }
+};
