@@ -1339,10 +1339,35 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-// Declare lucide variable
-window.lucide = {
-    createIcons: function () {
-        // Placeholder for lucide icon creation logic
-        console.log('Lucide icons created');
-    }
-};
+// Só define window.lucide se não existir (não sobrescreve o Lucide real)
+if (!window.lucide) {
+    window.lucide = {
+        createIcons: function () {
+            // Placeholder para ambiente sem Lucide real
+            console.log('Lucide icons created');
+        }
+    };
+}
+
+// Expondo funções globais para uso nos atributos onclick do HTML
+window.gerarSenha = gerarSenha;
+window.toggleTheme = toggleTheme;
+window.toggleSettings = toggleSettings;
+window.toggleHistory = toggleHistory;
+window.switchTab = switchTab;
+window.toggleAdvancedOptions = toggleAdvancedOptions;
+window.updateLengthFromSlider = updateLengthFromSlider;
+window.updateLengthFromInput = updateLengthFromInput;
+window.applyPreset = applyPreset;
+window.copiarSenha = copiarSenha;
+window.toggleSenhaVisibilidade = toggleSenhaVisibilidade;
+window.addToFavorites = addToFavorites;
+window.sharePassword = sharePassword;
+window.downloadPassword = downloadPassword;
+window.analyzePassword = analyzePassword;
+window.toggleAnalyzeVisibility = toggleAnalyzeVisibility;
+window.generateBulkPasswords = generateBulkPasswords;
+window.copyAllPasswords = copyAllPasswords;
+window.exportPasswords = exportPasswords;
+window.clearHistory = clearHistory;
+window.closeSuccessModal = closeSuccessModal;
