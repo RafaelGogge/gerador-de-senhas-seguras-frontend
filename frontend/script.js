@@ -1,6 +1,6 @@
 // Enhanced State Management
 const CONFIG = {
-    API_URL: API_BACKEND,
+    API_URL: window.API_BACKEND, 
     DEBOUNCE_DELAY: 300,
     ANIMATION_DURATION: 300,
     ALERT_DURATION: 4000,
