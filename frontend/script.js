@@ -1,6 +1,6 @@
 // Enhanced State Management
 const CONFIG = {
-    API_URL: "https://gerador-de-senhas-seguras-backend.onrender.com", // Definido diretamente aqui
+    API_URL: "https://gerador-de-senhas-seguras-backend.onrender.com",
     DEBOUNCE_DELAY: 300,
     ANIMATION_DURATION: 300,
     ALERT_DURATION: 4000,
@@ -572,7 +572,7 @@ async function gerarSenha() {
     btnGerar.classList.add('loading');
 
     try {
-        const response = await fetch(`${CONFIG.API_URL}?tamanho=${length}`, {
+        const response = await fetch(`${CONFIG.API_URL}/gerar-senha?tamanho=${length}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
