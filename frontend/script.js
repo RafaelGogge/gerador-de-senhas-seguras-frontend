@@ -1,6 +1,6 @@
 // Enhanced State Management
 const CONFIG = {
-    API_URL: window.API_BACKEND, 
+    API_URL: "https://gerador-de-senhas-seguras-backend.onrender.com", // Definido diretamente aqui
     DEBOUNCE_DELAY: 300,
     ANIMATION_DURATION: 300,
     ALERT_DURATION: 4000,
@@ -1348,26 +1348,3 @@ if (!window.lucide) {
         }
     };
 }
-
-// Expondo funções globais para uso nos atributos onclick do HTML
-window.gerarSenha = gerarSenha;
-window.toggleTheme = toggleTheme;
-window.toggleSettings = toggleSettings;
-window.toggleHistory = toggleHistory;
-window.switchTab = switchTab;
-window.toggleAdvancedOptions = toggleAdvancedOptions;
-window.updateLengthFromSlider = updateLengthFromSlider;
-window.updateLengthFromInput = updateLengthFromInput;
-window.applyPreset = applyPreset;
-window.copiarSenha = copiarSenha;
-window.toggleSenhaVisibilidade = toggleSenhaVisibilidade;
-window.addToFavorites = addToFavorites;
-window.sharePassword = sharePassword;
-window.downloadPassword = downloadPassword;
-window.analyzePassword = analyzePassword;
-window.toggleAnalyzeVisibility = toggleAnalyzeVisibility;
-window.generateBulkPasswords = generateBulkPasswords;
-window.copyAllPasswords = copyAllPasswords;
-window.exportPasswords = exportPasswords;
-window.clearHistory = clearHistory;
-window.closeSuccessModal = closeSuccessModal;
