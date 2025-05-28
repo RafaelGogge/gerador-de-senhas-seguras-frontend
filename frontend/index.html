@@ -657,10 +657,8 @@
 
     <script src="script.js"></script>
     <script>
-        window.API_BACKEND = "https://gerador-de-senhas-seguras-backend.onrender.com";
-    </script>
-    <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Inicialize tudo só depois do DOM estar pronto!
             lucide.createIcons();
             initializeTheme();
             initializeApp();
